@@ -1,0 +1,153 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  username        String   @unique
+  passwordHash    String?  @map("password_hash")
+  timezone        String?
+  defaultCurrency String?  @map("default_currency")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
+
+  authIdentities   AuthIdentity[]
+  emailConnections EmailConnection[]
+  emailCandidates  EmailCandidate[]
+  userBillers      UserBiller[]
+  bills            Bill[]
+
+  @@map("users")
+}
+
+model AuthIdentity {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  email             String
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("auth_identities")
+}
+
+model EmailConnection {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  provider          String    @default("google")
+  providerAccountId String    @map("provider_account_id")
+  emailAddress      String    @map("email_address")
+  displayName       String?   @map("display_name")
+  accessToken       String    @map("access_token")
+  refreshToken      String    @map("refresh_token")
+  scope             String
+  expiresAt         DateTime  @map("expires_at")
+  status            String    @default("active")
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailCandidates EmailCandidate[]
+
+  @@unique([userId, provider, providerAccountId])
+  @@map("email_connections")
+}
+
+model Biller {
+  id             String   @id @default(uuid())
+  canonicalName  String   @map("canonical_name")
+  category       String?
+  senderPatterns String[] @default([]) @map("sender_patterns")
+  country        String?
+  logoUrl        String?  @map("logo_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  userBillers UserBiller[]
+
+  @@map("billers")
+}
+
+model UserBiller {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  billerId    String?  @map("biller_id")
+  displayName String   @map("display_name")
+  status      String   @default("active")
+  createdVia  String   @map("created_via")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  biller Biller? @relation(fields: [billerId], references: [id])
+  bills  Bill[]
+
+  @@map("user_billers")
+}
+
+model EmailCandidate {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  emailConnectionId  String    @map("email_connection_id")
+  gmailMessageId     String    @map("gmail_message_id")
+  subject            String?
+  sender             String?
+  receivedAt         DateTime? @map("received_at")
+  processed          Boolean   @default(false)
+  isBill             Boolean?  @map("is_bill")
+  rejectionReason    String?   @map("rejection_reason")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailConnection EmailConnection @relation(fields: [emailConnectionId], references: [id], onDelete: Cascade)
+  bills          Bill[]
+
+  @@unique([emailConnectionId, gmailMessageId])
+  @@map("email_candidates")
+}
+
+model Bill {
+  id                 String    @id @default(uuid())
+  userId             String    @map("user_id")
+  userBillerId       String?   @map("user_biller_id")
+  emailCandidateId   String?   @map("email_candidate_id")
+  extractedCompany   String?   @map("extracted_company")
+  amount             Decimal?  @db.Decimal
+  currency           String?
+  dueDate            DateTime? @db.Date @map("due_date")
+  category           String?
+  confidence         Decimal?  @db.Decimal
+  status             String    @default("unpaid")
+  paidAt             DateTime? @map("paid_at")
+  manuallyEdited     Boolean   @default(false) @map("manually_edited")
+  convertedAmount    Decimal?  @db.Decimal @map("converted_amount")
+  convertedCurrency  String?   @map("converted_currency")
+  fxRateUsed         Decimal?  @db.Decimal @map("fx_rate_used")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userBiller     UserBiller?     @relation(fields: [userBillerId], references: [id])
+  emailCandidate EmailCandidate? @relation(fields: [emailCandidateId], references: [id])
+
+  @@map("bills")
+}
+
+model FxRate {
+  id             String   @id @default(uuid())
+  baseCurrency   String   @map("base_currency")
+  quoteCurrency  String   @map("quote_currency")
+  rate           Decimal  @db.Decimal
+  asOfDate       DateTime @db.Date @map("as_of_date")
+
+  @@unique([baseCurrency, quoteCurrency, asOfDate])
+  @@map("fx_rates")
+}

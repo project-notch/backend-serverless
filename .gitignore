@@ -1,0 +1,12 @@
+node_modules
+dist
+*.tsbuildinfo
+coverage
+
+# Keep environment variables out of version control
+.env*
+!.env.example
+
+/src/generated/prisma
+
+.vercel
