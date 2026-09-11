@@ -1,22 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import serverless from 'serverless-http';
+import type { Application } from 'express';
 import { createApp } from '../src/create-app.js';
 
-type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
+let expressAppPromise: Promise<Application> | undefined = undefined;
 
-let handlerPromise: Promise<Handler> | undefined = undefined;
-
-function getHandler(): Promise<Handler> {
-  if (handlerPromise === undefined) {
-    handlerPromise = createApp().then((app) => {
-      const expressApp = app.getHttpAdapter().getInstance();
-      return serverless(expressApp) as unknown as Handler;
-    });
+function getExpressApp(): Promise<Application> {
+  if (expressAppPromise === undefined) {
+    expressAppPromise = createApp().then((app) => app.getHttpAdapter().getInstance());
   }
-  return handlerPromise;
+  return expressAppPromise;
 }
 
 export default async function (req: VercelRequest, res: VercelResponse) {
-  const handler = await getHandler();
-  return handler(req, res);
+  const expressApp = await getExpressApp();
+  expressApp(req, res);
 }
