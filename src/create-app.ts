@@ -21,5 +21,7 @@ export async function createApp(): Promise<NestExpressApplication> {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
+  await app.init();
+
   return app;
 }
