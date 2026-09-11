@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -7,16 +7,20 @@ import { AuthService } from './auth.service.js';
 import { AuthIdentityService } from './auth-identity.service.js';
 import { PasswordService } from './password.service.js';
 import { OAuthStateService } from './oauth-state.service.js';
+import { MagicLinkService } from './magic-link.service.js';
+import { MagicLinkRateLimiterService } from './magic-link-rate-limiter.service.js';
 import { GoogleLoginStrategy } from './google-login.strategy.js';
 import { LocalStrategy } from './local.strategy.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 import { UsersModule } from '../users/users.module.js';
+import { IntegrationsModule } from '../integrations/integrations.module.js';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    UsersModule,
+    forwardRef(() => UsersModule),
+    IntegrationsModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -36,11 +40,20 @@ import { UsersModule } from '../users/users.module.js';
     AuthIdentityService,
     PasswordService,
     OAuthStateService,
+    MagicLinkService,
+    MagicLinkRateLimiterService,
     GoogleLoginStrategy,
     LocalStrategy,
     JwtStrategy,
     JwtAuthGuard,
   ],
-  exports: [AuthService, AuthIdentityService, OAuthStateService, JwtAuthGuard, JwtModule],
+  exports: [
+    AuthService,
+    AuthIdentityService,
+    OAuthStateService,
+    JwtAuthGuard,
+    JwtModule,
+    PassportModule,
+  ],
 })
 export class AuthModule {}

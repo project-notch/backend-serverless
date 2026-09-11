@@ -13,6 +13,7 @@ model User {
   email           String   @unique
   username        String   @unique
   passwordHash    String?  @map("password_hash")
+  usernameSetByUser Boolean @default(false) @map("username_set_by_user")
   timezone        String?
   defaultCurrency String?  @map("default_currency")
   createdAt       DateTime @default(now()) @map("created_at")
