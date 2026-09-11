@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import serverless from 'serverless-http';
-import { createApp } from '../dist/create-app.js';
+import { createApp } from '../src/create-app.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
-let handlerPromise: Promise<Handler> | undefined;
+let handlerPromise: Promise<Handler> | undefined = undefined;
 
 function getHandler(): Promise<Handler> {
-  if (!handlerPromise) {
+  if (handlerPromise === undefined) {
     handlerPromise = createApp().then((app) => {
       const expressApp = app.getHttpAdapter().getInstance();
       return serverless(expressApp) as unknown as Handler;
