@@ -5,6 +5,9 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { MagicLinkDto } from './dto/magic-link.dto.js';
+import { CompleteSetupDto } from './dto/complete-setup.dto.js';
+import { JwtAuthGuard } from './jwt-auth.guard.js';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -24,6 +27,34 @@ export class AuthController {
   login(@Body() _dto: LoginDto, @Req() req: Request) {
     const user = req.user as { id: string; email: string };
     return { token: this.authService.signAccessToken(user) };
+  }
+
+  @Post('magic-link')
+  @ApiOperation({ summary: 'Email a passwordless sign-in link (creates the account if new)' })
+  async requestMagicLink(@Body() dto: MagicLinkDto) {
+    await this.authService.requestMagicLink(dto.email);
+    return { message: 'Check your email for a sign-in link.' };
+  }
+
+  @Get('magic/callback')
+  @ApiOperation({ summary: 'Magic-link callback (opened from the emailed link, not called directly)' })
+  @ApiResponse({ status: 302, description: 'Redirects to frontend with JWT in query string' })
+  async magicLinkCallback(@Req() req: Request, @Res() res: Response) {
+    const token = req.query.token as string;
+    const user = await this.authService.verifyMagicLink(token);
+    const accessToken = this.authService.signAccessToken(user);
+    res.redirect(this.authService.buildFrontendRedirectUrl(accessToken));
+  }
+
+  @Post('complete-setup')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Set a password (required) and optionally a username, for a passwordless account',
+  })
+  async completeSetup(@Body() dto: CompleteSetupDto, @Req() req: Request) {
+    const user = req.user as { userId: string };
+    await this.authService.completeSetup(user.userId, dto);
+    return { message: 'Account setup complete.' };
   }
 
   @Get('google')

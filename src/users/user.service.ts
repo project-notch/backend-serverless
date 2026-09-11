@@ -5,6 +5,7 @@ interface CreateUserInput {
   email: string;
   username: string;
   passwordHash?: string;
+  usernameSetByUser?: boolean;
 }
 
 @Injectable()
@@ -25,6 +26,21 @@ export class UserService {
 
   async findByUsername(username: string) {
     return this.prisma.user.findUnique({ where: { username } });
+  }
+
+  /**
+   * Sets the account's password and, if provided, replaces the
+   * auto-generated username with a user-chosen one — flips
+   * `usernameSetByUser` so the app knows not to keep prompting for it.
+   */
+  async completeSetup(userId: string, input: { passwordHash: string; username?: string }) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash: input.passwordHash,
+        ...(input.username ? { username: input.username, usernameSetByUser: true } : {}),
+      },
+    });
   }
 
   /** Login accepts either a username or an email in the same field. */

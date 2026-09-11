@@ -13,7 +13,7 @@ export async function createApp(): Promise<NestExpressApplication> {
   app.enableCors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:3001', credentials: true });
 
   const config = new DocumentBuilder()
-    .setTitle('Project Notch API')
+    .setTitle('Project Nutian API')
     .setDescription('Bill & recurring-payment detection — backend API')
     .setVersion('0.1.0')
     .addBearerAuth()
