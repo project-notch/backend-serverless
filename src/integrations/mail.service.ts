@@ -11,17 +11,30 @@ interface SendMailOptions {
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly resend: Resend;
   private readonly from: string;
+  private resend: Resend | undefined;
 
-  constructor(config: ConfigService) {
-    this.resend = new Resend(config.getOrThrow<string>('RESEND_API_KEY'));
+  constructor(private readonly config: ConfigService) {
     // resend.dev sender works without a verified domain — swap once Nutian has one.
     this.from = config.get<string>('MAIL_FROM') ?? 'Nutian <onboarding@resend.dev>';
   }
 
+  /**
+   * Built lazily, on first send, instead of in the constructor — so a missing
+   * RESEND_API_KEY only breaks the email-sending path, not app boot. This
+   * service is eagerly instantiated as part of AuthModule's DI graph, so a
+   * constructor-time getOrThrow would take the whole API down over one
+   * missing integration key (as it did in production).
+   */
+  private getClient(): Resend {
+    if (!this.resend) {
+      this.resend = new Resend(this.config.getOrThrow<string>('RESEND_API_KEY'));
+    }
+    return this.resend;
+  }
+
   async send({ to, subject, html }: SendMailOptions): Promise<void> {
-    const { error } = await this.resend.emails.send({
+    const { error } = await this.getClient().emails.send({
       from: this.from,
       to,
       subject,
