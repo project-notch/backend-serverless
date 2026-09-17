@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 interface StatePayload {
   purpose: 'connect-gmail';
   userId: string;
+  nickname?: string;
 }
 
 /**
@@ -19,18 +20,18 @@ interface StatePayload {
 export class OAuthStateService {
   constructor(private readonly jwtService: JwtService) {}
 
-  sign(userId: string): string {
+  sign(userId: string, nickname?: string): string {
     return this.jwtService.sign(
-      { purpose: 'connect-gmail', userId } satisfies StatePayload,
+      { purpose: 'connect-gmail', userId, nickname } satisfies StatePayload,
       { expiresIn: '5m' },
     );
   }
 
-  verify(state: string): string {
+  verify(state: string): { userId: string; nickname?: string } {
     const payload = this.jwtService.verify<StatePayload>(state);
     if (payload.purpose !== 'connect-gmail') {
       throw new Error('Invalid OAuth state token');
     }
-    return payload.userId;
+    return { userId: payload.userId, nickname: payload.nickname };
   }
 }

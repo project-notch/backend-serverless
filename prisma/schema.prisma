@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -14,6 +15,7 @@ model User {
   username        String   @unique
   passwordHash    String?  @map("password_hash")
   usernameSetByUser Boolean @default(false) @map("username_set_by_user")
+  phone           String?
   timezone        String?
   defaultCurrency String?  @map("default_currency")
   createdAt       DateTime @default(now()) @map("created_at")
@@ -55,6 +57,7 @@ model EmailConnection {
   expiresAt         DateTime  @map("expires_at")
   status            String    @default("active")
   lastSyncedAt      DateTime? @map("last_synced_at")
+  historyId         String?   @map("history_id")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at")
 

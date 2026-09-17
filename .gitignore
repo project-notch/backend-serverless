@@ -10,3 +10,6 @@ coverage
 /src/generated/prisma
 
 .vercel
+
+.vercel
+.env*

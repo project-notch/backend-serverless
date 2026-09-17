@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import sgMail from '@sendgrid/mail';
 
 interface SendMailOptions {
   to: string;
@@ -12,38 +12,36 @@ interface SendMailOptions {
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly from: string;
-  private resend: Resend | undefined;
+  private clientReady = false;
 
   constructor(private readonly config: ConfigService) {
-    // resend.dev sender works without a verified domain — swap once Nutian has one.
-    this.from = config.get<string>('MAIL_FROM') ?? 'Nutian <onboarding@resend.dev>';
+    // Must be a SendGrid Single Sender verified address — see MAIL_FROM in .env.example.
+    this.from = config.get<string>('MAIL_FROM') ?? 'Nutian <onboarding@example.com>';
   }
 
   /**
-   * Built lazily, on first send, instead of in the constructor — so a missing
-   * RESEND_API_KEY only breaks the email-sending path, not app boot. This
-   * service is eagerly instantiated as part of AuthModule's DI graph, so a
-   * constructor-time getOrThrow would take the whole API down over one
-   * missing integration key (as it did in production).
+   * API key set lazily, on first send, instead of in the constructor — so a missing
+   * SENDGRID_API_KEY only breaks the email-sending path, not app boot. This service
+   * is eagerly instantiated as part of AuthModule's DI graph, so a constructor-time
+   * getOrThrow would take the whole API down over one missing integration key (as it
+   * did in production with Resend).
    */
-  private getClient(): Resend {
-    if (!this.resend) {
-      this.resend = new Resend(this.config.getOrThrow<string>('RESEND_API_KEY'));
+  private ensureClient(): void {
+    if (!this.clientReady) {
+      sgMail.setApiKey(this.config.getOrThrow<string>('SENDGRID_API_KEY'));
+      this.clientReady = true;
     }
-    return this.resend;
   }
 
   async send({ to, subject, html }: SendMailOptions): Promise<void> {
-    const { error } = await this.getClient().emails.send({
-      from: this.from,
-      to,
-      subject,
-      html,
-    });
+    this.ensureClient();
 
-    if (error) {
-      this.logger.error(`Failed to send email to ${to}: ${error.message}`);
-      throw new Error(`Failed to send email: ${error.message}`);
+    try {
+      await sgMail.send({ to, from: this.from, subject, html });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to send email to ${to}: ${message}`);
+      throw new Error(`Failed to send email: ${message}`);
     }
   }
 

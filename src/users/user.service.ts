@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 interface CreateUserInput {
@@ -39,6 +39,29 @@ export class UserService {
       data: {
         passwordHash: input.passwordHash,
         ...(input.username ? { username: input.username, usernameSetByUser: true } : {}),
+      },
+    });
+  }
+
+  async updateProfile(
+    userId: string,
+    input: { username?: string; phone?: string; defaultCurrency?: string; timezone?: string },
+  ) {
+    if (input.username) {
+      const existing = await this.findByUsername(input.username);
+      if (existing && existing.id !== userId) {
+        throw new ConflictException('That username is already taken');
+      }
+    }
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(input.username ? { username: input.username, usernameSetByUser: true } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone || null } : {}),
+        ...(input.defaultCurrency !== undefined
+          ? { defaultCurrency: input.defaultCurrency || null }
+          : {}),
+        ...(input.timezone !== undefined ? { timezone: input.timezone || null } : {}),
       },
     });
   }

@@ -46,13 +46,14 @@ export class GoogleGmailStrategy extends PassportStrategy(Strategy, 'google-gmai
     // how we know which already-logged-in user this callback belongs to,
     // since the browser doesn't send an Authorization header on a redirect.
     const state = req.query.state as string;
-    const userId = this.oauthStateService.verify(state);
+    const { userId, nickname } = this.oauthStateService.verify(state);
 
     const connection = await this.connectionService.upsertConnection({
       userId,
       provider: 'google',
       providerAccountId: profile.id,
       emailAddress: profile.emails?.[0]?.value ?? '',
+      displayName: nickname,
       accessToken,
       refreshToken,
       scope: 'profile email https://www.googleapis.com/auth/gmail.readonly',

@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, Param, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -6,6 +6,7 @@ import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { EmailConnectionService } from './email-connection.service.js';
 import { GmailConnectStartGuard } from './gmail-connect-start.guard.js';
+import { UpdateConnectionDto } from './dto/update-connection.dto.js';
 
 @ApiTags('connections')
 @Controller('connections')
@@ -44,7 +45,16 @@ export class ConnectionController {
   @ApiResponse({ status: 302, description: 'Redirects to frontend connections page' })
   googleCallback(@Res() res: Response) {
     const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
-    res.redirect(`${frontendUrl}/connections?connected=1`);
+    res.redirect(`${frontendUrl}/settings/connections?connected=1`);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Rename a connected inbox (its nickname)" })
+  rename(@Param('id') id: string, @Body() dto: UpdateConnectionDto, @Req() req: Request) {
+    const user = req.user as { userId: string };
+    return this.connectionService.rename(user.userId, id, dto.displayName ?? '');
   }
 
   @Delete(':id')

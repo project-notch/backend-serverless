@@ -10,7 +10,13 @@ export async function createApp(): Promise<NestExpressApplication> {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, transform: true }),
   );
-  app.enableCors({ origin: process.env.FRONTEND_URL ?? 'http://localhost:3001', credentials: true });
+  // Flutter web's dev server picks a random localhost port each run, so in dev
+  // any localhost/127.0.0.1 origin is allowed instead of pinning to FRONTEND_URL.
+  const isProd = process.env.NODE_ENV === 'production';
+  app.enableCors({
+    origin: isProd ? (process.env.FRONTEND_URL ?? 'http://localhost:3001') : /^http:\/\/(localhost|127\.0\.0\.1):\d+$/,
+    credentials: true,
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Project Nutian API')

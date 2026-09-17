@@ -20,6 +20,11 @@ export class GmailConnectStartGuard extends AuthGuard('google-gmail') {
   getAuthenticateOptions(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
     const userId = request.user.userId as string;
-    return { state: this.oauthStateService.sign(userId) };
+    const rawNickname = request.query.nickname;
+    const nickname =
+      typeof rawNickname === 'string' && rawNickname.trim()
+        ? rawNickname.trim().slice(0, 60)
+        : undefined;
+    return { state: this.oauthStateService.sign(userId, nickname) };
   }
 }
