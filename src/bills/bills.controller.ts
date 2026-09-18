@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { BillService } from './bills.service.js';
@@ -27,5 +27,15 @@ export class BillController {
   updateStatus(@Param('id') id: string, @Body() dto: UpdateBillDto, @Req() req: Request) {
     const { userId } = req.user as { userId: string };
     return this.billService.updateStatus(userId, id, dto.status);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a bill (e.g. a duplicate or misclassified extraction)' })
+  async remove(@Param('id') id: string, @Req() req: Request): Promise<void> {
+    const { userId } = req.user as { userId: string };
+    await this.billService.remove(userId, id);
   }
 }

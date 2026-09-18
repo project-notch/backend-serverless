@@ -89,4 +89,18 @@ export class BillService {
       createdAt: updated.createdAt,
     };
   }
+
+  /**
+   * Manual delete — the escape hatch for a bill the extraction pipeline got
+   * wrong (duplicate, misclassified, whatever). Only removes the Bill row;
+   * its source EmailCandidate stays `processed: true`, so a future sync
+   * won't re-extract and resurrect it.
+   */
+  async remove(userId: string, billId: string): Promise<void> {
+    const bill = await this.prisma.bill.findUnique({ where: { id: billId } });
+    if (!bill) throw new NotFoundException('Bill not found');
+    if (bill.userId !== userId) throw new ForbiddenException();
+
+    await this.prisma.bill.delete({ where: { id: billId } });
+  }
 }
