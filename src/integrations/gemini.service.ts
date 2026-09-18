@@ -88,12 +88,17 @@ export class GeminiService {
     const contentBlock = `EMAIL:\nSUBJECT: ${subject}\nFROM: ${sender}\nRECEIVED_DATE: ${date}\n\n${body}`;
     const prompt = this.buildPrompt(contentBlock);
 
-    const response = await this.getClient().models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-    });
-
-    return { raw: response.text ?? '', estimatedCostUsd: this.estimateCost(prompt, response.text ?? '') };
+    this.logger.log(`generateContent (text) — subject="${subject}"`);
+    try {
+      const response = await this.getClient().models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+      });
+      return { raw: response.text ?? '', estimatedCostUsd: this.estimateCost(prompt, response.text ?? '') };
+    } catch (error) {
+      this.logger.error(`generateContent (text) failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   /**
@@ -112,20 +117,26 @@ export class GeminiService {
       `(e.g. 'due in 5 days', 'within 5 days of receipt').`;
     const prompt = this.buildPrompt(contentBlock);
 
-    const response = await this.getClient().models.generateContent({
-      model: MODEL_NAME,
-      contents: [
-        { text: prompt },
-        { inlineData: { mimeType: 'application/pdf', data: pdfBytes.toString('base64') } },
-      ],
-    });
+    this.logger.log(`generateContent (pdf) — subject="${subject}" pdfBytes=${pdfBytes.length}`);
+    try {
+      const response = await this.getClient().models.generateContent({
+        model: MODEL_NAME,
+        contents: [
+          { text: prompt },
+          { inlineData: { mimeType: 'application/pdf', data: pdfBytes.toString('base64') } },
+        ],
+      });
 
-    return {
-      raw: response.text ?? '',
-      // PDF bytes dominate input tokens in a way plain string length can't
-      // estimate — treated as a fixed rough addition rather than modeled precisely.
-      estimatedCostUsd: this.estimateCost(prompt, response.text ?? '', pdfBytes.length),
-    };
+      return {
+        raw: response.text ?? '',
+        // PDF bytes dominate input tokens in a way plain string length can't
+        // estimate — treated as a fixed rough addition rather than modeled precisely.
+        estimatedCostUsd: this.estimateCost(prompt, response.text ?? '', pdfBytes.length),
+      };
+    } catch (error) {
+      this.logger.error(`generateContent (pdf) failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
   }
 
   /**

@@ -85,6 +85,7 @@ export class GmailService {
    * POC's `main()` search step (`messages.list` with the keyword query).
    */
   async searchCandidateMessageIds(refreshToken: string, maxResults = 50): Promise<string[]> {
+    this.logger.log(`messages.list — query="${this.buildQuery()}" maxResults=${maxResults}`);
     try {
       const gmail = this.getGmailClient(refreshToken);
       const resp = await gmail.users.messages.list({
@@ -92,8 +93,11 @@ export class GmailService {
         q: this.buildQuery(),
         maxResults,
       });
-      return (resp.data.messages ?? []).map((m) => m.id!).filter(Boolean);
+      const ids = (resp.data.messages ?? []).map((m) => m.id!).filter(Boolean);
+      this.logger.log(`messages.list — ${ids.length} result(s)`);
+      return ids;
     } catch (error) {
+      this.logger.error(`messages.list failed: ${error instanceof Error ? error.message : String(error)}`);
       if (this.isAuthError(error)) throw new GoogleAuthError('Gmail refresh token rejected');
       throw error;
     }
@@ -126,6 +130,7 @@ export class GmailService {
         }
         if (resp.data.historyId) latestHistoryId = resp.data.historyId;
         pageToken = resp.data.nextPageToken ?? undefined;
+        this.logger.log(`history.list page — ${messageIds.size} message id(s) so far, nextPage=${!!pageToken}`);
       } while (pageToken);
 
       // history.list doesn't support Gmail's search-query syntax, so each
@@ -163,8 +168,10 @@ export class GmailService {
     try {
       const gmail = this.getGmailClient(refreshToken);
       const resp = await gmail.users.getProfile({ userId: 'me' });
+      this.logger.log(`getProfile — historyId ${resp.data.historyId ?? 'none'}`);
       return resp.data.historyId ?? null;
     } catch (error) {
+      this.logger.error(`getProfile failed: ${error instanceof Error ? error.message : String(error)}`);
       if (this.isAuthError(error)) throw new GoogleAuthError('Gmail refresh token rejected');
       throw error;
     }
@@ -193,6 +200,9 @@ export class GmailService {
         receivedAt: dateHeader ? new Date(dateHeader) : null,
       };
     } catch (error) {
+      this.logger.error(
+        `messages.get (metadata) failed for ${messageId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       if (this.isAuthError(error)) throw new GoogleAuthError('Gmail refresh token rejected');
       throw error;
     }
@@ -217,6 +227,7 @@ export class GmailService {
       const pdfAttachments = await this.extractPdfAttachments(gmail, messageId, payload);
       const bodyText = this.extractBodyText(payload);
 
+      this.logger.log(`messages.get (full) ${messageId} — ${pdfAttachments.length} PDF attachment(s)`);
       return {
         gmailMessageId: messageId,
         subject,
@@ -226,6 +237,9 @@ export class GmailService {
         pdfAttachments,
       };
     } catch (error) {
+      this.logger.error(
+        `messages.get (full) failed for ${messageId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       if (this.isAuthError(error)) throw new GoogleAuthError('Gmail refresh token rejected');
       throw error;
     }

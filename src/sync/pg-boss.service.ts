@@ -100,12 +100,15 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
     const maxCandidates = Number(this.config.get<string>('SYNC_MAX_CANDIDATES_PER_RUN') ?? 50);
 
     try {
+      this.logger.log(`[${connectionId}] discovering candidate messages (historyId=${connection.historyId ?? 'none'})`);
       const { messageIds, newHistoryId } = await this.discoverCandidateMessageIds(
         refreshToken,
         connection.historyId,
       );
+      this.logger.log(`[${connectionId}] discovery done — ${messageIds.length} candidate message id(s)`);
 
-      for (const messageId of messageIds) {
+      for (const [i, messageId] of messageIds.entries()) {
+        this.logger.log(`[${connectionId}] fetching metadata ${i + 1}/${messageIds.length} — message ${messageId}`);
         const metadata = await this.gmailService.fetchMessageMetadata(refreshToken, messageId);
         await this.emailCandidateService.upsertCandidate({
           userId: connection.userId,
@@ -115,7 +118,9 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
       }
 
       const unprocessed = await this.emailCandidateService.findUnprocessed(connectionId, maxCandidates);
-      for (const candidate of unprocessed) {
+      this.logger.log(`[${connectionId}] extracting ${unprocessed.length} unprocessed candidate(s)`);
+      for (const [i, candidate] of unprocessed.entries()) {
+        this.logger.log(`[${connectionId}] extracting ${i + 1}/${unprocessed.length} — candidate ${candidate.id}`);
         await this.billExtractionService.processCandidate({
           userId: connection.userId,
           refreshToken,
@@ -159,10 +164,14 @@ export class PgBossService implements OnModuleInit, OnModuleDestroy {
     historyId: string | null,
   ): Promise<{ messageIds: string[]; newHistoryId: string | null }> {
     if (historyId) {
+      this.logger.log(`Incremental sync via history.list from historyId ${historyId}`);
       const history = await this.gmailService.fetchHistorySince(refreshToken, historyId);
       if (!history.historyStale) {
         return { messageIds: history.candidateMessageIds, newHistoryId: history.newHistoryId };
       }
+      this.logger.warn(`historyId ${historyId} stale — falling back to full search`);
+    } else {
+      this.logger.log('No stored historyId — running full keyword search');
     }
 
     const messageIds = await this.gmailService.searchCandidateMessageIds(refreshToken);
