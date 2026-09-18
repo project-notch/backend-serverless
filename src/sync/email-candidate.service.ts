@@ -37,6 +37,22 @@ export class EmailCandidateService {
     });
   }
 
+  /**
+   * Filters out message ids we've already stored a candidate for — used
+   * before the metadata-fetch loop on the full-keyword-search fallback path
+   * (which re-lists the whole inbox), so already-known messages skip the
+   * Gmail API call entirely instead of relying on upsertCandidate's no-op.
+   */
+  async filterUnknownMessageIds(emailConnectionId: string, gmailMessageIds: string[]): Promise<string[]> {
+    if (gmailMessageIds.length === 0) return [];
+    const existing = await this.prisma.emailCandidate.findMany({
+      where: { emailConnectionId, gmailMessageId: { in: gmailMessageIds } },
+      select: { gmailMessageId: true },
+    });
+    const known = new Set(existing.map((c) => c.gmailMessageId));
+    return gmailMessageIds.filter((id) => !known.has(id));
+  }
+
   async findUnprocessed(emailConnectionId: string, limit: number) {
     return this.prisma.emailCandidate.findMany({
       where: { emailConnectionId, processed: false },

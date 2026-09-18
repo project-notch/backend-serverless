@@ -89,8 +89,20 @@ export class SyncService {
       );
       this.logger.log(`[${connectionId}] discovery done — ${messageIds.length} candidate message id(s)`);
 
-      await this.mapWithConcurrency(messageIds, fetchConcurrency, async (messageId, i) => {
-        this.logger.log(`[${connectionId}] fetching metadata ${i + 1}/${messageIds.length} — message ${messageId}`);
+      // history.list only ever returns new messages, so this mainly matters
+      // on the full-keyword-search fallback path (first sync / stale
+      // historyId), which re-lists the whole inbox each time — skips a
+      // Gmail API call per already-known message instead of fetching its
+      // metadata again just to have upsertCandidate no-op it.
+      const newMessageIds = await this.emailCandidateService.filterUnknownMessageIds(connectionId, messageIds);
+      if (newMessageIds.length !== messageIds.length) {
+        this.logger.log(
+          `[${connectionId}] ${messageIds.length - newMessageIds.length} already known — skipping metadata fetch for those`,
+        );
+      }
+
+      await this.mapWithConcurrency(newMessageIds, fetchConcurrency, async (messageId, i) => {
+        this.logger.log(`[${connectionId}] fetching metadata ${i + 1}/${newMessageIds.length} — message ${messageId}`);
         const metadata = await this.gmailService.fetchMessageMetadata(refreshToken, messageId);
         await this.emailCandidateService.upsertCandidate({
           userId: connection.userId,
