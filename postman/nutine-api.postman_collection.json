@@ -37,7 +37,10 @@
                 "exec": [
                   "if (pm.response.code === 201 || pm.response.code === 200) {",
                   "  const body = pm.response.json();",
-                  "  if (body.token) pm.collectionVariables.set('token', body.token);",
+                  "  if (body.token) {",
+                  "    const scope = pm.environment.name ? pm.environment : pm.collectionVariables;",
+                  "    scope.set('token', body.token);",
+                  "  }",
                   "}"
                 ]
               }
@@ -63,7 +66,10 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "  const body = pm.response.json();",
-                  "  if (body.token) pm.collectionVariables.set('token', body.token);",
+                  "  if (body.token) {",
+                  "    const scope = pm.environment.name ? pm.environment : pm.collectionVariables;",
+                  "    scope.set('token', body.token);",
+                  "  }",
                   "}"
                 ]
               }
@@ -159,7 +165,8 @@
                   "  const body = pm.response.json();",
                   "  const list = Array.isArray(body) ? body : body.connections;",
                   "  if (Array.isArray(list) && list.length && list[0].id) {",
-                  "    pm.collectionVariables.set('connectionId', list[0].id);",
+                  "    const scope = pm.environment.name ? pm.environment : pm.collectionVariables;",
+                  "    scope.set('connectionId', list[0].id);",
                   "  }",
                   "}"
                 ]
@@ -247,7 +254,8 @@
                   "  const body = pm.response.json();",
                   "  const list = body.items || body.bills || (Array.isArray(body) ? body : []);",
                   "  if (Array.isArray(list) && list.length && list[0].id) {",
-                  "    pm.collectionVariables.set('billId', list[0].id);",
+                  "    const scope = pm.environment.name ? pm.environment : pm.collectionVariables;",
+                  "    scope.set('billId', list[0].id);",
                   "  }",
                   "}"
                 ]
