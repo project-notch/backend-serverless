@@ -29,6 +29,15 @@ export class EmailConnectionService {
       providerAccountId: input.providerAccountId,
     };
 
+    const existing = await this.prisma.emailConnection.findUnique({
+      where: { userId_provider_providerAccountId: key },
+      select: { id: true },
+    });
+
+    // Every inbox always gets a nickname — "Inbox N" (by connection order)
+    // when the user hasn't named it, never a bare unlabeled connection.
+    const displayName = existing ? input.displayName : input.displayName ?? (await this._nextInboxNickname(input.userId));
+
     return this.prisma.emailConnection.upsert({
       where: {
         userId_provider_providerAccountId: key,
@@ -36,7 +45,7 @@ export class EmailConnectionService {
       update: {
         emailAddress: input.emailAddress,
         // Reconnecting without naming the inbox keeps whatever nickname it already had.
-        ...(input.displayName ? { displayName: input.displayName } : {}),
+        ...(displayName ? { displayName } : {}),
         accessToken: input.accessToken,
         refreshToken: encryptedRefreshToken,
         scope: input.scope,
@@ -46,7 +55,7 @@ export class EmailConnectionService {
       create: {
         ...key,
         emailAddress: input.emailAddress,
-        displayName: input.displayName ?? null,
+        displayName,
         accessToken: input.accessToken,
         refreshToken: encryptedRefreshToken,
         scope: input.scope,
@@ -56,7 +65,39 @@ export class EmailConnectionService {
     });
   }
 
+  private async _nextInboxNickname(userId: string): Promise<string> {
+    const count = await this.prisma.emailConnection.count({ where: { userId } });
+    return `Inbox ${count + 1}`;
+  }
+
+  /**
+   * Catches inboxes connected before nicknames were assigned at creation
+   * time — numbers them "Inbox N" by connection order, leaving any
+   * already-named connection untouched.
+   */
+  private async _backfillMissingNicknames(userId: string): Promise<void> {
+    const connections = await this.prisma.emailConnection.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, displayName: true },
+    });
+
+    await Promise.all(
+      connections
+        .map((c, i) => ({ ...c, position: i + 1 }))
+        .filter((c) => !c.displayName)
+        .map((c) =>
+          this.prisma.emailConnection.update({
+            where: { id: c.id },
+            data: { displayName: `Inbox ${c.position}` },
+          }),
+        ),
+    );
+  }
+
   async listForUser(userId: string) {
+    await this._backfillMissingNicknames(userId);
+
     const [connections, bills] = await Promise.all([
       this.prisma.emailConnection.findMany({
         where: { userId },
