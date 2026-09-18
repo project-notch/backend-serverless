@@ -68,7 +68,13 @@ export class SyncService {
       return { status: 'needs_reauth' as const };
     }
 
-    const maxCandidates = Number(this.config.get<string>('SYNC_MAX_CANDIDATES_PER_RUN') ?? 50);
+    // Kept small on purpose: this whole sync must fit inside one Vercel
+    // request (60s maxDuration on Hobby, hard-capped — can't raise it
+    // further). Leftover candidates just get picked up on the next tap,
+    // since discovery is incremental (history.list) and extraction only
+    // ever pulls unprocessed rows.
+    const maxCandidates = Number(this.config.get<string>('SYNC_MAX_CANDIDATES_PER_RUN') ?? 15);
+    const fetchConcurrency = Number(this.config.get<string>('SYNC_FETCH_CONCURRENCY') ?? 5);
 
     try {
       this.logger.log(`[${connectionId}] discovering candidate messages (historyId=${connection.historyId ?? 'none'})`);
@@ -78,7 +84,7 @@ export class SyncService {
       );
       this.logger.log(`[${connectionId}] discovery done — ${messageIds.length} candidate message id(s)`);
 
-      for (const [i, messageId] of messageIds.entries()) {
+      await this.mapWithConcurrency(messageIds, fetchConcurrency, async (messageId, i) => {
         this.logger.log(`[${connectionId}] fetching metadata ${i + 1}/${messageIds.length} — message ${messageId}`);
         const metadata = await this.gmailService.fetchMessageMetadata(refreshToken, messageId);
         await this.emailCandidateService.upsertCandidate({
@@ -86,18 +92,18 @@ export class SyncService {
           emailConnectionId: connectionId,
           message: metadata,
         });
-      }
+      });
 
       const unprocessed = await this.emailCandidateService.findUnprocessed(connectionId, maxCandidates);
       this.logger.log(`[${connectionId}] extracting ${unprocessed.length} unprocessed candidate(s)`);
-      for (const [i, candidate] of unprocessed.entries()) {
+      await this.mapWithConcurrency(unprocessed, fetchConcurrency, (candidate, i) => {
         this.logger.log(`[${connectionId}] extracting ${i + 1}/${unprocessed.length} — candidate ${candidate.id}`);
-        await this.billExtractionService.processCandidate({
+        return this.billExtractionService.processCandidate({
           userId: connection.userId,
           refreshToken,
           candidate,
         });
-      }
+      });
 
       await this.prisma.emailConnection.update({
         where: { id: connectionId },
@@ -149,8 +155,29 @@ export class SyncService {
       this.logger.log('No stored historyId — running full keyword search');
     }
 
-    const messageIds = await this.gmailService.searchCandidateMessageIds(refreshToken);
+    const searchLimit = Number(this.config.get<string>('SYNC_MAX_CANDIDATES_PER_RUN') ?? 15);
+    const messageIds = await this.gmailService.searchCandidateMessageIds(refreshToken, searchLimit);
     const newHistoryId = await this.gmailService.getCurrentHistoryId(refreshToken);
     return { messageIds, newHistoryId };
+  }
+
+  /**
+   * Runs `fn` over `items` with at most `limit` in flight at once — cuts
+   * wall-clock time for the Gmail/Gemini calls in the sync loop (each one
+   * is mostly network wait) without unbounded fan-out per request.
+   */
+  private async mapWithConcurrency<T>(
+    items: T[],
+    limit: number,
+    fn: (item: T, index: number) => Promise<void>,
+  ): Promise<void> {
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (cursor < items.length) {
+        const index = cursor++;
+        await fn(items[index], index);
+      }
+    });
+    await Promise.all(workers);
   }
 }
