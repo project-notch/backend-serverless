@@ -1,0 +1,315 @@
+{
+  "info": {
+    "name": "Nutine API",
+    "description": "Endpoint tests for the nutine-portal-apis backend (backend-serverless). Set {{baseUrl}} to the dev deployment or http://localhost:3000. Login/Register requests auto-save the JWT into {{token}} via a test script; every guarded request uses collection-level Bearer auth referencing {{token}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://nutine-portal-apis-dev.vercel.app" },
+    { "key": "token", "value": "" },
+    { "key": "connectionId", "value": "" },
+    { "key": "billId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane@example.com\",\n  \"username\": \"janedoe\",\n  \"password\": \"a-strong-password\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.token) pm.collectionVariables.set('token', body.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"janedoe\",\n  \"password\": \"a-strong-password\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  if (body.token) pm.collectionVariables.set('token', body.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request Magic Link",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/magic-link", "host": ["{{baseUrl}}"], "path": ["auth", "magic-link"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"jane@example.com\"\n}" }
+          }
+        },
+        {
+          "name": "Magic Link Callback (browser only)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": {
+              "raw": "{{baseUrl}}/auth/magic/callback?token=PASTE_EMAILED_TOKEN",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "magic", "callback"],
+              "query": [{ "key": "token", "value": "PASTE_EMAILED_TOKEN" }]
+            },
+            "description": "Redirects (302) — open in a browser, not via Send in Postman, or disable redirect-follow to inspect the Location header."
+          }
+        },
+        {
+          "name": "Complete Setup (passwordless account)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/complete-setup", "host": ["{{baseUrl}}"], "path": ["auth", "complete-setup"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"janedoe\",\n  \"password\": \"a-strong-password\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Google Login Start (browser only)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/auth/google", "host": ["{{baseUrl}}"], "path": ["auth", "google"] },
+            "description": "Redirects to Google consent screen — open directly in a browser tab."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users", "me"] }
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/users/me", "host": ["{{baseUrl}}"], "path": ["users", "me"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"janedoe\",\n  \"phone\": \"+14155552671\",\n  \"defaultCurrency\": \"USD\",\n  \"timezone\": \"America/New_York\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Connections",
+      "item": [
+        {
+          "name": "List Connections",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/connections", "host": ["{{baseUrl}}"], "path": ["connections"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const list = Array.isArray(body) ? body : body.connections;",
+                  "  if (Array.isArray(list) && list.length && list[0].id) {",
+                  "    pm.collectionVariables.set('connectionId', list[0].id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Connect Gmail Inbox (browser only)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/connections/google", "host": ["{{baseUrl}}"], "path": ["connections", "google"] },
+            "description": "Redirects to Google's gmail.readonly consent screen. Requires a valid JWT already attached to the session/cookie the guard checks — open in a browser, not via Send."
+          }
+        },
+        {
+          "name": "Rename Connection",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{baseUrl}}/connections/{{connectionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["connections", "{{connectionId}}"]
+            },
+            "body": { "mode": "raw", "raw": "{\n  \"displayName\": \"Personal\"\n}" }
+          }
+        },
+        {
+          "name": "Disconnect Inbox",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/connections/{{connectionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["connections", "{{connectionId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sync",
+      "item": [
+        {
+          "name": "Trigger Sync Now",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/sync/{{connectionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "{{connectionId}}"]
+            },
+            "description": "Returns 202 and queues an async pg-boss job. Poll GET /connections or /dashboard/summary for lastSyncedAt to see when it actually finishes."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bills",
+      "item": [
+        {
+          "name": "List Bills",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/bills?page=1&pageSize=10&filter=upcoming&sortBy=dueDate",
+              "host": ["{{baseUrl}}"],
+              "path": ["bills"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "10" },
+                { "key": "filter", "value": "upcoming", "description": "upcoming | overdue | paid | all" },
+                { "key": "category", "value": "utility", "disabled": true, "description": "utility | telecom | subscription | insurance | other" },
+                { "key": "sortBy", "value": "dueDate", "description": "dueDate | amount | createdAt" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const list = body.items || body.bills || (Array.isArray(body) ? body : []);",
+                  "  if (Array.isArray(list) && list.length && list[0].id) {",
+                  "    pm.collectionVariables.set('billId', list[0].id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Bill Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/bills/{{billId}}", "host": ["{{baseUrl}}"], "path": ["bills", "{{billId}}"] },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"paid\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Billers",
+      "item": [
+        {
+          "name": "List My Billers",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/billers", "host": ["{{baseUrl}}"], "path": ["billers"] }
+          }
+        },
+        {
+          "name": "List Bill Categories",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/billers/categories", "host": ["{{baseUrl}}"], "path": ["billers", "categories"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Summary",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/dashboard/summary", "host": ["{{baseUrl}}"], "path": ["dashboard", "summary"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Misc",
+      "item": [
+        {
+          "name": "Health / Hello",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": { "raw": "{{baseUrl}}/", "host": ["{{baseUrl}}"], "path": [""] }
+          }
+        }
+      ]
+    }
+  ]
+}
