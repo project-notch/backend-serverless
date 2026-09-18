@@ -68,19 +68,24 @@ export class SyncService {
       return { status: 'needs_reauth' as const };
     }
 
-    // Kept small on purpose: this whole sync must fit inside one Vercel
-    // request (60s maxDuration on Hobby, hard-capped — can't raise it
-    // further). Leftover candidates just get picked up on the next tap,
-    // since discovery is incremental (history.list) and extraction only
-    // ever pulls unprocessed rows.
-    const maxCandidates = Number(this.config.get<string>('SYNC_MAX_CANDIDATES_PER_RUN') ?? 15);
+    // Discovery is cheap (headers-only Gmail calls) so it fetches everything
+    // in one go; extraction (Gemini) is the slow part, so it runs in
+    // batches until either nothing's left or `deadline` is close — this
+    // whole sync must return within one Vercel request (60s maxDuration on
+    // Hobby, hard-capped — no warning before it's killed), so `deadline`
+    // leaves a safety margin rather than racing that hard cutoff.
+    const discoveryLimit = Number(this.config.get<string>('SYNC_DISCOVERY_LIMIT') ?? 200);
+    const extractionBatchSize = Number(this.config.get<string>('SYNC_EXTRACTION_BATCH_SIZE') ?? 15);
     const fetchConcurrency = Number(this.config.get<string>('SYNC_FETCH_CONCURRENCY') ?? 5);
+    const softBudgetMs = Number(this.config.get<string>('SYNC_SOFT_BUDGET_MS') ?? 50_000);
+    const deadline = Date.now() + softBudgetMs;
 
     try {
       this.logger.log(`[${connectionId}] discovering candidate messages (historyId=${connection.historyId ?? 'none'})`);
       const { messageIds, newHistoryId } = await this.discoverCandidateMessageIds(
         refreshToken,
         connection.historyId,
+        discoveryLimit,
       );
       this.logger.log(`[${connectionId}] discovery done — ${messageIds.length} candidate message id(s)`);
 
@@ -94,28 +99,47 @@ export class SyncService {
         });
       });
 
-      const unprocessed = await this.emailCandidateService.findUnprocessed(connectionId, maxCandidates);
-      this.logger.log(`[${connectionId}] extracting ${unprocessed.length} unprocessed candidate(s)`);
-      await this.mapWithConcurrency(unprocessed, fetchConcurrency, (candidate, i) => {
-        this.logger.log(`[${connectionId}] extracting ${i + 1}/${unprocessed.length} — candidate ${candidate.id}`);
-        return this.billExtractionService.processCandidate({
-          userId: connection.userId,
-          refreshToken,
-          candidate,
+      let extractedCount = 0;
+      let ranOutOfTime = false;
+      while (true) {
+        if (Date.now() >= deadline) {
+          ranOutOfTime = true;
+          this.logger.warn(`[${connectionId}] soft budget hit — stopping extraction early, next tap continues`);
+          break;
+        }
+
+        const batch = await this.emailCandidateService.findUnprocessed(connectionId, extractionBatchSize);
+        if (batch.length === 0) break;
+
+        this.logger.log(`[${connectionId}] extracting batch of ${batch.length} candidate(s)`);
+        await this.mapWithConcurrency(batch, fetchConcurrency, (candidate, i) => {
+          this.logger.log(`[${connectionId}] extracting ${extractedCount + i + 1} — candidate ${candidate.id}`);
+          return this.billExtractionService.processCandidate({
+            userId: connection.userId,
+            refreshToken,
+            candidate,
+          });
         });
-      });
+        extractedCount += batch.length;
+      }
 
       await this.prisma.emailConnection.update({
         where: { id: connectionId },
-        data: { status: 'active', lastSyncedAt: new Date(), historyId: newHistoryId ?? connection.historyId },
+        data: {
+          status: ranOutOfTime ? 'syncing' : 'active',
+          lastSyncedAt: new Date(),
+          historyId: newHistoryId ?? connection.historyId,
+        },
       });
       this.logger.log(
-        `Sync complete for connection ${connectionId}: ${messageIds.length} candidate(s) found, ${unprocessed.length} extracted`,
+        `Sync ${ranOutOfTime ? 'paused (ran out of time)' : 'complete'} for connection ${connectionId}: ` +
+          `${messageIds.length} candidate(s) found, ${extractedCount} extracted`,
       );
       return {
-        status: 'active' as const,
+        status: ranOutOfTime ? ('syncing' as const) : ('active' as const),
         candidatesFound: messageIds.length,
-        candidatesExtracted: unprocessed.length,
+        candidatesExtracted: extractedCount,
+        hasMore: ranOutOfTime,
       };
     } catch (error) {
       if (error instanceof GoogleAuthError) {
@@ -143,6 +167,7 @@ export class SyncService {
   private async discoverCandidateMessageIds(
     refreshToken: string,
     historyId: string | null,
+    discoveryLimit: number,
   ): Promise<{ messageIds: string[]; newHistoryId: string | null }> {
     if (historyId) {
       this.logger.log(`Incremental sync via history.list from historyId ${historyId}`);
@@ -155,8 +180,7 @@ export class SyncService {
       this.logger.log('No stored historyId — running full keyword search');
     }
 
-    const searchLimit = Number(this.config.get<string>('SYNC_MAX_CANDIDATES_PER_RUN') ?? 15);
-    const messageIds = await this.gmailService.searchCandidateMessageIds(refreshToken, searchLimit);
+    const messageIds = await this.gmailService.searchCandidateMessageIds(refreshToken, discoveryLimit);
     const newHistoryId = await this.gmailService.getCurrentHistoryId(refreshToken);
     return { messageIds, newHistoryId };
   }
