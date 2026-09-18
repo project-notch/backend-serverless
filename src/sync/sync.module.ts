@@ -5,7 +5,6 @@ import { KeywordFilterService } from './keyword-filter.service.js';
 import { EmailCandidateService } from './email-candidate.service.js';
 import { CurrencyNormalizerService } from './currency-normalizer.service.js';
 import { BillExtractionService } from './bill-extraction.service.js';
-import { PgBossService } from './pg-boss.service.js';
 import { IntegrationsModule } from '../integrations/integrations.module.js';
 import { BillersModule } from '../billers/billers.module.js';
 import { FxModule } from '../fx/fx.module.js';
@@ -24,7 +23,6 @@ import { ConnectionsModule } from '../connections/connections.module.js';
     EmailCandidateService,
     CurrencyNormalizerService,
     BillExtractionService,
-    PgBossService,
   ],
 })
 export class SyncModule {}
