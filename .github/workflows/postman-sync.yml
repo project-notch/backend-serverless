@@ -1,0 +1,56 @@
+name: Sync Postman collection
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "src/**/*.controller.ts"
+      - "src/**/dto/**"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      DEV_API_URL: https://nutine-portal-apis-dev.vercel.app
+      POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+      POSTMAN_COLLECTION_UID: ${{ vars.POSTMAN_COLLECTION_UID }}
+    steps:
+      - name: Wait for Vercel dev deploy to roll out
+        if: github.event_name == 'push'
+        run: sleep 60
+
+      - name: Fetch live OpenAPI spec
+        run: curl -sf "$DEV_API_URL/docs-json" -o openapi.json
+
+      - name: Convert OpenAPI spec to a Postman collection
+        run: npx --yes openapi-to-postmanv2 -s openapi.json -o collection.json -p
+
+      - name: Inject baseUrl variable
+        run: |
+          node -e "
+            const fs = require('fs');
+            const c = JSON.parse(fs.readFileSync('collection.json'));
+            c.variable = (c.variable || []).filter(v => v.key !== 'baseUrl');
+            c.variable.unshift({ key: 'baseUrl', value: process.env.DEV_API_URL });
+            fs.writeFileSync('collection.json', JSON.stringify(c, null, 2));
+          "
+
+      - name: Create collection (first run only)
+        if: env.POSTMAN_COLLECTION_UID == ''
+        run: |
+          RESPONSE=$(curl -s -X POST "https://api.getpostman.com/collections" \
+            -H "X-Api-Key: $POSTMAN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"collection\": $(cat collection.json)}")
+          echo "$RESPONSE"
+          UID=$(echo "$RESPONSE" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).collection.uid))")
+          echo "::warning::New collection created — add this as repo variable POSTMAN_COLLECTION_UID: $UID"
+
+      - name: Update existing collection
+        if: env.POSTMAN_COLLECTION_UID != ''
+        run: |
+          curl -sf -X PUT "https://api.getpostman.com/collections/$POSTMAN_COLLECTION_UID" \
+            -H "X-Api-Key: $POSTMAN_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"collection\": $(cat collection.json)}"
