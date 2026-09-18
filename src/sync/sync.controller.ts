@@ -12,13 +12,12 @@ export class SyncController {
   @Post(':connectionId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @HttpCode(HttpStatus.ACCEPTED)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Trigger a Gmail inbox sync for one connected inbox ("Sync Now")',
-    description:
-      'Submits an async pg-boss job and returns immediately. Poll GET /connections for status/lastSyncedAt to track progress.',
+    description: 'Runs the sync inline and waits for it to finish before responding.',
   })
-  @ApiResponse({ status: 202, description: 'Sync job submitted' })
+  @ApiResponse({ status: 200, description: 'Sync finished' })
   @ApiResponse({ status: 404, description: 'Connection not found' })
   @ApiResponse({ status: 403, description: "Connection does not belong to the logged-in user" })
   async sync(@Param('connectionId') connectionId: string, @Req() req: Request) {

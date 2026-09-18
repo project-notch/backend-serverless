@@ -14,8 +14,8 @@ import { FxRateService } from '../fx/fx-rate.service.js';
  * re-fetches its content, runs it through Gemini, normalizes the result,
  * resolves a biller, converts currency, and writes the resulting Bill row.
  *
- * Re-throws GoogleAuthError so the caller (the pg-boss sync job handler)
- * can flip the connection to `needs_reauth` — every other failure is
+ * Re-throws GoogleAuthError so the caller (SyncService.runSync) can flip
+ * the connection to `needs_reauth` — every other failure is
  * swallowed here and recorded as a rejected candidate, since one bad email
  * shouldn't fail the whole sync run.
  */
