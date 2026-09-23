@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { daysFromTodayUtc, startOfTodayUtc } from '../common/user-timezone.util.js';
 import type { ListBillsDto } from './dto/list-bills.dto.js';
 
 @Injectable()
@@ -8,19 +9,20 @@ export class BillService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(userId: string, query: ListBillsDto) {
-    const now = new Date();
-    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+    const today = startOfTodayUtc(user?.timezone);
+    const in30Days = daysFromTodayUtc(user?.timezone, 30);
 
     const where: Prisma.BillWhereInput = { userId };
 
     switch (query.filter) {
       case 'upcoming':
         where.status = 'unpaid';
-        where.dueDate = { gte: now, lte: in30Days };
+        where.dueDate = { gte: today, lte: in30Days };
         break;
       case 'overdue':
         where.status = 'unpaid';
-        where.dueDate = { lt: now };
+        where.dueDate = { lt: today };
         break;
       case 'paid':
         where.status = 'paid';
@@ -52,6 +54,9 @@ export class BillService {
         company: bill.extractedCompany,
         amount: bill.amount ? Number(bill.amount) : null,
         currency: bill.currency,
+        convertedAmount: bill.convertedAmount ? Number(bill.convertedAmount) : null,
+        convertedCurrency: bill.convertedCurrency,
+        fxRateUsed: bill.fxRateUsed ? Number(bill.fxRateUsed) : null,
         dueDate: bill.dueDate,
         category: bill.category,
         status: bill.status,
@@ -82,6 +87,9 @@ export class BillService {
       company: updated.extractedCompany,
       amount: updated.amount ? Number(updated.amount) : null,
       currency: updated.currency,
+      convertedAmount: updated.convertedAmount ? Number(updated.convertedAmount) : null,
+      convertedCurrency: updated.convertedCurrency,
+      fxRateUsed: updated.fxRateUsed ? Number(updated.fxRateUsed) : null,
       dueDate: updated.dueDate,
       category: updated.category,
       status: updated.status,

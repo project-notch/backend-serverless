@@ -1,33 +1,50 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { daysFromTodayUtc, startOfMonthUtc, startOfNextMonthUtc, startOfTodayUtc } from '../common/user-timezone.util.js';
 
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getSummary(userId: string) {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  /**
+   * Bills carry both `amount` (original currency) and `convertedAmount`
+   * (only set when it differs from the user's default currency — see
+   * BillExtractionService). Summing `amount` directly would silently mix
+   * currencies once a user has bills in more than one; `convertedAmount ??
+   * amount` is the correct per-bill figure to add up.
+   */
+  private sumBills(bills: { amount: Prisma.Decimal | null; convertedAmount: Prisma.Decimal | null }[]): number {
+    return bills.reduce((total, bill) => {
+      const value = bill.convertedAmount ?? bill.amount;
+      return total + (value ? Number(value) : 0);
+    }, 0);
+  }
 
-    const [totalDueThisMonth, overdue, upcoming7Days, totalBills, paidThisMonth, lastConnection] =
+  async getSummary(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } });
+    const timezone = user?.timezone;
+
+    const today = startOfTodayUtc(timezone);
+    const startOfMonth = startOfMonthUtc(timezone);
+    const startOfNextMonth = startOfNextMonthUtc(timezone);
+    const in7Days = daysFromTodayUtc(timezone, 7);
+
+    const amountFields = { amount: true, convertedAmount: true } as const;
+
+    const [dueThisMonthBills, overdueBills, upcoming7DaysBills, totalBills, paidThisMonth, lastConnection] =
       await Promise.all([
-        this.prisma.bill.aggregate({
-          _sum: { amount: true },
-          where: {
-            userId,
-            status: 'unpaid',
-            dueDate: { gte: startOfMonth, lt: startOfNextMonth },
-          },
+        this.prisma.bill.findMany({
+          select: amountFields,
+          where: { userId, status: 'unpaid', dueDate: { gte: startOfMonth, lt: startOfNextMonth } },
         }),
-        this.prisma.bill.aggregate({
-          _sum: { amount: true },
-          where: { userId, status: 'unpaid', dueDate: { lt: now } },
+        this.prisma.bill.findMany({
+          select: amountFields,
+          where: { userId, status: 'unpaid', dueDate: { lt: today } },
         }),
-        this.prisma.bill.aggregate({
-          _sum: { amount: true },
-          where: { userId, status: 'unpaid', dueDate: { gte: now, lte: in7Days } },
+        this.prisma.bill.findMany({
+          select: amountFields,
+          where: { userId, status: 'unpaid', dueDate: { gte: today, lte: in7Days } },
         }),
         this.prisma.bill.count({ where: { userId } }),
         this.prisma.bill.count({
@@ -41,9 +58,9 @@ export class DashboardService {
       ]);
 
     return {
-      totalDueThisMonth: Number(totalDueThisMonth._sum.amount ?? 0),
-      overdue: Number(overdue._sum.amount ?? 0),
-      upcoming7Days: Number(upcoming7Days._sum.amount ?? 0),
+      totalDueThisMonth: this.sumBills(dueThisMonthBills),
+      overdue: this.sumBills(overdueBills),
+      upcoming7Days: this.sumBills(upcoming7DaysBills),
       lastSyncedAt: lastConnection?.lastSyncedAt ?? null,
       totalBills,
       paidThisMonth,
