@@ -62,10 +62,13 @@ export class UserBillerService {
         inboxLabel: inboxByBiller.get(ub.id) ?? null,
       })),
       total: userBillers.length,
-      // 'syncing' is a healthy in-progress state, not a problem — only flag a real
-      // issue (needs_reauth or anything else unexpected), so this banner doesn't
-      // flash on for every ordinary sync run.
-      gmailNeedsReauth: connections.some((c) => c.status !== 'active' && c.status !== 'syncing'),
+      // 'syncing' is a healthy in-progress state, not a problem, and 'revoked'
+      // is an inbox the user disconnected on purpose — only flag a real issue
+      // (needs_reauth or anything else unexpected), so this banner doesn't
+      // flash on for every ordinary sync run or nag about a removed inbox.
+      gmailNeedsReauth: connections.some(
+        (c) => c.status !== 'active' && c.status !== 'syncing' && c.status !== 'revoked',
+      ),
     };
   }
 

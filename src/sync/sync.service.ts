@@ -45,6 +45,12 @@ export class SyncService {
     });
     if (!connection) throw new NotFoundException('Connection not found');
     if (connection.userId !== userId) throw new ForbiddenException();
+    // A disconnected inbox is retained only so a reconnect can reuse its id;
+    // it isn't listed to the client, so a sync request for one is stale state.
+    // Without this it would be flipped to 'syncing', then to 'needs_reauth'
+    // once the (deliberately cleared) token came back null — quietly undoing
+    // the disconnect and nagging the user to reauth an inbox they removed.
+    if (connection.status === 'revoked') throw new NotFoundException('Connection not found');
 
     await this.prisma.emailConnection.update({
       where: { id: connectionId },

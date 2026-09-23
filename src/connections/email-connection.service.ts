@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TokenEncryptionService } from './token-encryption.service.js';
 
@@ -16,6 +16,8 @@ interface UpsertConnectionInput {
 
 @Injectable()
 export class EmailConnectionService {
+  private readonly logger = new Logger(EmailConnectionService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokenEncryption: TokenEncryptionService,
@@ -100,7 +102,10 @@ export class EmailConnectionService {
 
     const [connections, bills] = await Promise.all([
       this.prisma.emailConnection.findMany({
-        where: { userId },
+        // Disconnected inboxes are retained only so a reconnect can reuse
+        // their id and skip re-extraction — they aren't connections the user
+        // still has, so they never surface.
+        where: { userId, status: { not: 'revoked' } },
         orderBy: { createdAt: 'asc' },
         select: {
           id: true,
@@ -187,6 +192,23 @@ export class EmailConnectionService {
     });
   }
 
+  /**
+   * Soft disconnect: credentials are revoked at Google and cleared, but the
+   * row itself stays.
+   *
+   * Deleting it instead used to cascade away every EmailCandidate for that
+   * inbox. Reconnecting the same Google account then produced a *new*
+   * connection id, so every message looked unseen again — the whole mailbox
+   * was re-fetched and re-extracted (re-paying Gemini per message), and any
+   * bill the user had deliberately deleted came back, sitting alongside the
+   * now-orphaned originals. Keeping the row means a reconnect upserts onto
+   * it (see the `userId_provider_providerAccountId` key in upsertConnection),
+   * candidates stay `processed`, and none of that happens.
+   *
+   * The tradeoff: "disconnect" no longer erases the candidate metadata
+   * (subject/sender) already extracted from that inbox — that would need a
+   * separate, explicit delete-my-data action.
+   */
   async disconnect(userId: string, connectionId: string) {
     const connection = await this.prisma.emailConnection.findUnique({
       where: { id: connectionId },
@@ -194,19 +216,49 @@ export class EmailConnectionService {
     if (!connection) throw new NotFoundException('Connection not found');
     if (connection.userId !== userId) throw new ForbiddenException();
 
-    return this.prisma.emailConnection.delete({ where: { id: connectionId } });
+    if (connection.refreshToken) {
+      await this.revokeAtGoogle(this.tokenEncryption.decrypt(connection.refreshToken));
+    }
+
+    return this.prisma.emailConnection.update({
+      where: { id: connectionId },
+      data: { status: 'revoked', accessToken: null, refreshToken: null, historyId: null },
+      select: { id: true, status: true },
+    });
   }
 
   /**
-   * Returns the connection's decrypted refresh token. Does not refresh the
-   * access token itself — that needs an OAuth2 client (GmailService's
-   * territory), not yet wired up here.
+   * Best-effort — clearing our copy of the token is what actually stops this
+   * app reading the mailbox, so a failure here (network, already-revoked
+   * grant) must not leave the user unable to disconnect.
+   */
+  private async revokeAtGoogle(refreshToken: string): Promise<void> {
+    try {
+      const resp = await fetch('https://oauth2.googleapis.com/revoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token: refreshToken }).toString(),
+      });
+      if (!resp.ok) {
+        this.logger.warn(`Google token revocation returned ${resp.status}; clearing local copy anyway`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Google token revocation failed (${message}); clearing local copy anyway`);
+    }
+  }
+
+  /**
+   * Returns the connection's decrypted refresh token, or null when there
+   * isn't one (disconnected inbox — see [disconnect]). Callers treat null as
+   * "this connection can't be synced"; GmailService's OAuth2 client handles
+   * minting access tokens from it, so nothing else needs refreshing here.
    */
   async getDecryptedRefreshToken(connectionId: string) {
     const connection = await this.prisma.emailConnection.findUnique({
       where: { id: connectionId },
     });
-    if (!connection) return null;
+    if (!connection?.refreshToken) return null;
     return this.tokenEncryption.decrypt(connection.refreshToken);
   }
 
