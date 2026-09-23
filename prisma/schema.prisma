@@ -51,10 +51,14 @@ model EmailConnection {
   providerAccountId String    @map("provider_account_id")
   emailAddress      String    @map("email_address")
   displayName       String?   @map("display_name")
-  accessToken       String    @map("access_token")
-  refreshToken      String    @map("refresh_token")
+  // Nullable so disconnecting can clear the credentials while keeping the
+  // row — the row's identity is what stops a reconnect from re-extracting
+  // (and resurrecting) the whole mailbox. See EmailConnectionService.disconnect.
+  accessToken       String?   @map("access_token")
+  refreshToken      String?   @map("refresh_token")
   scope             String
   expiresAt         DateTime  @map("expires_at")
+  /// active | syncing | needs_reauth | revoked (user-disconnected)
   status            String    @default("active")
   lastSyncedAt      DateTime? @map("last_synced_at")
   historyId         String?   @map("history_id")
