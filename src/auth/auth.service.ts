@@ -125,9 +125,8 @@ export class AuthService {
     return this.jwtService.sign({ sub: user.id, email: user.email });
   }
 
-  buildFrontendRedirectUrl(token: string, reactivated = false): string {
+  buildFrontendRedirectUrl(token: string): string {
     const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
-    const suffix = reactivated ? '&reactivated=1' : '';
-    return `${frontendUrl}/auth/callback?token=${token}${suffix}`;
+    return `${frontendUrl}/auth/callback?token=${token}`;
   }
 }

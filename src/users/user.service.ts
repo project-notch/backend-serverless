@@ -119,17 +119,31 @@ export class UserService {
   }
 
   /**
-   * Cancels a pending deletion outright when the user logs back in during
-   * the retention window — full reactivation, not just a pushed-out date.
-   * Called from every fresh-login entry point (password, Google, magic
-   * link), never from ordinary JWT-authenticated requests.
+   * Resolves a pending-deletion account the user just logged back into.
+   * They get a choice, not an automatic restore — [keepData] true
+   * cancels the deletion outright (bills, billers, connections all still
+   * there); false wipes everything bill-related instead and reactivates
+   * into a clean slate under the same login. Either way the account
+   * itself (credentials, email) was never touched, so this never needs a
+   * separate registration step.
    */
-  async reactivateIfPending(userId: string): Promise<boolean> {
-    const { count } = await this.prisma.user.updateMany({
-      where: { id: userId, status: 'pending_deletion' },
+  async resolvePendingDeletion(userId: string, keepData: boolean): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.status !== 'pending_deletion') return;
+
+    if (!keepData) {
+      await this.prisma.$transaction([
+        this.prisma.bill.deleteMany({ where: { userId } }),
+        this.prisma.userBiller.deleteMany({ where: { userId } }),
+        this.prisma.emailCandidate.deleteMany({ where: { userId } }),
+        this.prisma.emailConnection.deleteMany({ where: { userId } }),
+      ]);
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
       data: { status: 'active', pendingDeletionAt: null, purgeAt: null },
     });
-    return count > 0;
   }
 
   /**
