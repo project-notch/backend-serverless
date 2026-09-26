@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { ConnectionController } from './connection.controller.js';
 import { EmailConnectionService } from './email-connection.service.js';
@@ -9,10 +9,12 @@ import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
   imports: [
-    // AuthModule no longer needs anything from ConnectionsModule (that
-    // dependency moved out with EmailConnectionService's token-encryption
-    // fix), so this import is safely one-directional.
-    AuthModule,
+    // UsersModule now imports ConnectionsModule (for account-deletion's
+    // token revocation), closing a cycle back through AuthModule
+    // (UsersModule -> ConnectionsModule -> AuthModule -> UsersModule) —
+    // forwardRef defers this reference past module load, avoiding the
+    // "Cannot access before initialization" ESM cycle error.
+    forwardRef(() => AuthModule),
     PassportModule.register({ defaultStrategy: 'google-gmail' }),
   ],
   controllers: [ConnectionController],

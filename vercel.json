@@ -10,5 +10,8 @@
   },
   "rewrites": [
     { "source": "/(.*)", "destination": "/api" }
+  ],
+  "crons": [
+    { "path": "/internal/purge-expired-accounts", "schedule": "0 3 * * *" }
   ]
 }

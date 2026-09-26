@@ -18,6 +18,14 @@ model User {
   phone           String?
   timezone        String?
   defaultCurrency String?  @map("default_currency")
+  /// active | pending_deletion (user chose to keep bill data on delete —
+  /// see UserService.remove/reactivateIfPending)
+  status            String    @default("active")
+  pendingDeletionAt DateTime? @map("pending_deletion_at")
+  /// When a pending_deletion account's bill data actually gets purged —
+  /// logging in before this date cancels the deletion entirely (see
+  /// AuthService reactivation) rather than just pushing the date out.
+  purgeAt           DateTime? @map("purge_at")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 

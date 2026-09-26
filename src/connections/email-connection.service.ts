@@ -228,6 +228,38 @@ export class EmailConnectionService {
   }
 
   /**
+   * Revokes every connected inbox's grant at Google ahead of an *immediate*
+   * account deletion. The rows themselves aren't touched here — the caller
+   * deletes the User row right after this, which cascades away every
+   * EmailConnection anyway — this is purely about telling Google to stop
+   * honoring the tokens before they become unreachable.
+   */
+  async revokeAllForUser(userId: string): Promise<void> {
+    const connections = await this.prisma.emailConnection.findMany({
+      where: { userId, refreshToken: { not: null } },
+      select: { refreshToken: true },
+    });
+    await Promise.all(
+      connections.map((c) => this.revokeAtGoogle(this.tokenEncryption.decrypt(c.refreshToken!))),
+    );
+  }
+
+  /**
+   * Same as calling [disconnect] on every one of a user's inboxes — used
+   * when an account moves to `pending_deletion` (bill data retained, so the
+   * User row survives). Unlike [revokeAllForUser], this also updates each
+   * row so a stray sync can't quietly reactivate a connection the user just
+   * asked to walk away from.
+   */
+  async disconnectAllForUser(userId: string): Promise<void> {
+    const connections = await this.prisma.emailConnection.findMany({
+      where: { userId, status: { not: 'revoked' } },
+      select: { id: true },
+    });
+    await Promise.all(connections.map((c) => this.disconnect(userId, c.id)));
+  }
+
+  /**
    * Best-effort — clearing our copy of the token is what actually stops this
    * app reading the mailbox, so a failure here (network, already-revoked
    * grant) must not leave the user unable to disconnect.
