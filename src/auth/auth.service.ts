@@ -121,8 +121,8 @@ export class AuthService {
     });
   }
 
-  signAccessToken(user: { id: string; email: string }): string {
-    return this.jwtService.sign({ sub: user.id, email: user.email });
+  signAccessToken(user: { id: string; email: string; tokenVersion: number }): string {
+    return this.jwtService.sign({ sub: user.id, email: user.email, tokenVersion: user.tokenVersion });
   }
 
   buildFrontendRedirectUrl(token: string): string {

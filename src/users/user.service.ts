@@ -147,6 +147,19 @@ export class UserService {
   }
 
   /**
+   * Bumps tokenVersion — JwtStrategy.validate checks this on every request,
+   * so every access token issued so far (any device, including the one
+   * calling this) stops working immediately instead of staying valid for
+   * the rest of its 7-day life.
+   */
+  async logoutAllDevices(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+    });
+  }
+
+  /**
    * Hard-deletes every account whose retention window has passed —
    * called by PurgeService on a schedule, not directly reachable by users.
    */
