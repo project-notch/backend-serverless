@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import sgMail from '@sendgrid/mail';
+import { renderMagicLinkEmail } from './email-templates/magic-link.template.js';
+import { renderPasswordResetEmail } from './email-templates/password-reset.template.js';
 
 interface SendMailOptions {
   to: string;
@@ -53,14 +55,8 @@ export class MailService {
     const isExistingUser = options?.isExistingUser ?? false;
     await this.send({
       to,
-      subject: 'Your Nutian sign-in link',
-      html: isExistingUser
-        ? `<p>Click below to sign in to Nutian. This link expires in 15 minutes.</p>
-<p><a href="${link}">${link}</a></p>
-<p>If you didn't request this, you can ignore this email.</p>`
-        : `<p>Click below to confirm your email and finish creating your Nutian account. This link expires in 15 minutes.</p>
-<p><a href="${link}">${link}</a></p>
-<p>If you didn't request this, you can ignore this email.</p>`,
+      subject: isExistingUser ? 'Your Nutian sign-in link' : 'Confirm your Nutian account',
+      html: renderMagicLinkEmail(link, isExistingUser),
     });
   }
 
@@ -68,9 +64,7 @@ export class MailService {
     await this.send({
       to,
       subject: 'Reset your Nutian password',
-      html: `<p>Click below to choose a new password. This link expires in 15 minutes.</p>
-<p><a href="${link}">${link}</a></p>
-<p>If you didn't request this, you can ignore this email — your password hasn't changed.</p>`,
+      html: renderPasswordResetEmail(link),
     });
   }
 }
