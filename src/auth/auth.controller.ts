@@ -8,15 +8,11 @@ import { LoginDto } from './dto/login.dto.js';
 import { MagicLinkDto } from './dto/magic-link.dto.js';
 import { CompleteSetupDto } from './dto/complete-setup.dto.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
-import { UserService } from '../users/user.service.js';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly userService: UserService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Post('register')
   @ApiOperation({ summary: 'Create an account with email + username + password' })
@@ -27,11 +23,14 @@ export class AuthController {
 
   @Post('login')
   @UseGuards(AuthGuard('local'))
-  @ApiOperation({ summary: 'Log in with username-or-email + password' })
-  async login(@Body() _dto: LoginDto, @Req() req: Request) {
+  @ApiOperation({
+    summary:
+      'Log in with username-or-email + password. A pending-deletion account is NOT auto-restored — ' +
+      'check GET /users/me\'s status and, if pending_deletion, call POST /users/me/resolve-pending-deletion.',
+  })
+  login(@Body() _dto: LoginDto, @Req() req: Request) {
     const user = req.user as { id: string; email: string };
-    const reactivated = await this.userService.reactivateIfPending(user.id);
-    return { token: this.authService.signAccessToken(user), reactivated };
+    return { token: this.authService.signAccessToken(user) };
   }
 
   @Post('magic-link')
@@ -47,9 +46,8 @@ export class AuthController {
   async magicLinkCallback(@Req() req: Request, @Res() res: Response) {
     const token = req.query.token as string;
     const user = await this.authService.verifyMagicLink(token);
-    const reactivated = await this.userService.reactivateIfPending(user.id);
     const accessToken = this.authService.signAccessToken(user);
-    res.redirect(this.authService.buildFrontendRedirectUrl(accessToken, reactivated));
+    res.redirect(this.authService.buildFrontendRedirectUrl(accessToken));
   }
 
   @Post('complete-setup')
@@ -79,10 +77,9 @@ export class AuthController {
   @UseGuards(AuthGuard('google-login'))
   @ApiOperation({ summary: 'Google SSO callback (Google redirects here, not called directly)' })
   @ApiResponse({ status: 302, description: 'Redirects to frontend with JWT in query string' })
-  async googleCallback(@Req() req: Request, @Res() res: Response) {
+  googleCallback(@Req() req: Request, @Res() res: Response) {
     const user = req.user as { id: string; email: string };
-    const reactivated = await this.userService.reactivateIfPending(user.id);
     const token = this.authService.signAccessToken(user);
-    res.redirect(this.authService.buildFrontendRedirectUrl(token, reactivated));
+    res.redirect(this.authService.buildFrontendRedirectUrl(token));
   }
 }

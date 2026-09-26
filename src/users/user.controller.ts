@@ -6,6 +6,7 @@ import {
   HttpCode,
   NotFoundException,
   Patch,
+  Post,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ import { UserService } from './user.service.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { DeleteAccountDto } from './dto/delete-account.dto.js';
+import { ResolvePendingDeletionDto } from './dto/resolve-pending-deletion.dto.js';
 
 function toProfile(user: User) {
   return {
@@ -27,6 +29,10 @@ function toProfile(user: User) {
     timezone: user.timezone,
     hasPassword: Boolean(user.passwordHash),
     usernameSetByUser: user.usernameSetByUser,
+    // 'pending_deletion': logged back in during the 1-year retention
+    // window — the client must show the keep-data/start-new choice
+    // (POST /users/me/resolve-pending-deletion) before continuing on.
+    status: user.status,
   };
 }
 
@@ -73,5 +79,19 @@ export class UserController {
       keepBillData: dto.keepBillData,
     });
     return { deleted: true, dataRetainedUntil: purgeAt?.toISOString() ?? null };
+  }
+
+  @Post('me/resolve-pending-deletion')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Resolves a pending-deletion account the user just logged back into: keepData true restores their old bills/billers/connections, false wipes them and starts clean.',
+  })
+  async resolvePendingDeletion(@Body() dto: ResolvePendingDeletionDto, @Req() req: Request) {
+    const { userId } = req.user as { userId: string };
+    await this.userService.resolvePendingDeletion(userId, dto.keepData);
+    return toProfile((await this.userService.findById(userId))!);
   }
 }
