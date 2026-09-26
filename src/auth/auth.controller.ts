@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
@@ -15,6 +16,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: 'Create an account with email + username + password' })
   async register(@Body() dto: RegisterDto) {
     const user = await this.authService.register(dto);
@@ -22,7 +24,9 @@ export class AuthController {
   }
 
   @Post('login')
-  @UseGuards(AuthGuard('local'))
+  // ThrottlerGuard first — a request over the limit is rejected before it
+  // ever reaches the local strategy's password comparison.
+  @UseGuards(ThrottlerGuard, AuthGuard('local'))
   @ApiOperation({
     summary:
       'Log in with username-or-email + password. A pending-deletion account is NOT auto-restored — ' +
