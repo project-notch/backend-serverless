@@ -18,6 +18,14 @@ model User {
   phone           String?
   timezone        String?
   defaultCurrency String?  @map("default_currency")
+  /// active | pending_deletion (user chose to keep bill data on delete —
+  /// see UserService.remove/reactivateIfPending)
+  status            String    @default("active")
+  pendingDeletionAt DateTime? @map("pending_deletion_at")
+  /// When a pending_deletion account's bill data actually gets purged —
+  /// logging in before this date cancels the deletion entirely (see
+  /// AuthService reactivation) rather than just pushing the date out.
+  purgeAt           DateTime? @map("purge_at")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -51,10 +59,14 @@ model EmailConnection {
   providerAccountId String    @map("provider_account_id")
   emailAddress      String    @map("email_address")
   displayName       String?   @map("display_name")
-  accessToken       String    @map("access_token")
-  refreshToken      String    @map("refresh_token")
+  // Nullable so disconnecting can clear the credentials while keeping the
+  // row — the row's identity is what stops a reconnect from re-extracting
+  // (and resurrecting) the whole mailbox. See EmailConnectionService.disconnect.
+  accessToken       String?   @map("access_token")
+  refreshToken      String?   @map("refresh_token")
   scope             String
   expiresAt         DateTime  @map("expires_at")
+  /// active | syncing | needs_reauth | revoked (user-disconnected)
   status            String    @default("active")
   lastSyncedAt      DateTime? @map("last_synced_at")
   historyId         String?   @map("history_id")

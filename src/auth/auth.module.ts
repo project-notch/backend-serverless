@@ -50,6 +50,7 @@ import { IntegrationsModule } from '../integrations/integrations.module.js';
   exports: [
     AuthService,
     AuthIdentityService,
+    PasswordService,
     OAuthStateService,
     JwtAuthGuard,
     JwtModule,
