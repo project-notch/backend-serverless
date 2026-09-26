@@ -8,6 +8,13 @@ interface UpsertConnectionInput {
   providerAccountId: string;
   emailAddress: string;
   displayName?: string;
+  /**
+   * Accepted because passport hands it to us on every OAuth callback, but
+   * never persisted — GmailService only ever authenticates with the
+   * encrypted refreshToken (Google mints a fresh access token from that on
+   * demand), so storing this plaintext, short-lived credential would be
+   * pure unused exposure.
+   */
   accessToken: string;
   refreshToken: string;
   scope: string;
@@ -48,7 +55,7 @@ export class EmailConnectionService {
         emailAddress: input.emailAddress,
         // Reconnecting without naming the inbox keeps whatever nickname it already had.
         ...(displayName ? { displayName } : {}),
-        accessToken: input.accessToken,
+        accessToken: null,
         refreshToken: encryptedRefreshToken,
         scope: input.scope,
         expiresAt: input.expiresAt,
@@ -58,7 +65,7 @@ export class EmailConnectionService {
         ...key,
         emailAddress: input.emailAddress,
         displayName,
-        accessToken: input.accessToken,
+        accessToken: null,
         refreshToken: encryptedRefreshToken,
         scope: input.scope,
         expiresAt: input.expiresAt,
