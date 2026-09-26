@@ -94,4 +94,18 @@ export class UserController {
     await this.userService.resolvePendingDeletion(userId, dto.keepData);
     return toProfile((await this.userService.findById(userId))!);
   }
+
+  @Post('me/logout-all')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Invalidates every access token issued so far, on every device — including the one used to call this. Sign in again to get a new one.',
+  })
+  async logoutAllDevices(@Req() req: Request) {
+    const { userId } = req.user as { userId: string };
+    await this.userService.logoutAllDevices(userId);
+    return { message: 'Logged out everywhere.' };
+  }
 }

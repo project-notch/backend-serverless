@@ -29,7 +29,7 @@ export class AuthController {
       'check GET /users/me\'s status and, if pending_deletion, call POST /users/me/resolve-pending-deletion.',
   })
   login(@Body() _dto: LoginDto, @Req() req: Request) {
-    const user = req.user as { id: string; email: string };
+    const user = req.user as { id: string; email: string; tokenVersion: number };
     return { token: this.authService.signAccessToken(user) };
   }
 
@@ -78,7 +78,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Google SSO callback (Google redirects here, not called directly)' })
   @ApiResponse({ status: 302, description: 'Redirects to frontend with JWT in query string' })
   googleCallback(@Req() req: Request, @Res() res: Response) {
-    const user = req.user as { id: string; email: string };
+    const user = req.user as { id: string; email: string; tokenVersion: number };
     const token = this.authService.signAccessToken(user);
     res.redirect(this.authService.buildFrontendRedirectUrl(token));
   }

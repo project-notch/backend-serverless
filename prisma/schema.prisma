@@ -26,6 +26,11 @@ model User {
   /// logging in before this date cancels the deletion entirely (see
   /// AuthService reactivation) rather than just pushing the date out.
   purgeAt           DateTime? @map("purge_at")
+  /// Baked into every signed JWT (see AuthService.signAccessToken) and
+  /// checked against the DB on every request (see JwtStrategy.validate).
+  /// Bumping it — POST /users/me/logout-all — invalidates every
+  /// already-issued token instantly, without a revocable-token table.
+  tokenVersion    Int      @default(0) @map("token_version")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at")
 
