@@ -74,6 +74,19 @@ export class AuthController {
     return { message: 'Password updated. Sign in with your new password.' };
   }
 
+  @Get('reset-password/redirect')
+  @ApiOperation({
+    summary: 'Reset-password email link target (opened from the email, not called directly)',
+    description:
+      'An https link, not the nutine:// deep link — webmail clients like Gmail refuse to linkify a ' +
+      'custom URI scheme in received HTML, so the emailed button points here and this redirects into the app.',
+  })
+  @ApiResponse({ status: 302, description: 'Redirects to the app deep link' })
+  resetPasswordRedirect(@Req() req: Request, @Res() res: Response) {
+    const token = req.query.token as string;
+    res.redirect(this.authService.buildResetPasswordDeepLink(token));
+  }
+
   @Post('complete-setup')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({

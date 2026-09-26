@@ -108,9 +108,20 @@ export class AuthService {
     if (!user) return;
 
     const token = this.passwordResetService.sign(email);
-    const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
-    const link = `${frontendUrl}/auth/reset-password?token=${token}`;
+    // An https link, not the nutine:// deep link directly — Gmail (and most
+    // webmail clients) won't linkify a custom URI scheme in received HTML,
+    // so a button pointed straight at one renders as inert text. Mirrors
+    // requestMagicLink's own link shape: mail an API_URL link that redirects
+    // (GET /auth/reset-password/redirect) into the deep link, same as
+    // /auth/magic/callback does for magic-link.
+    const apiUrl = this.config.getOrThrow<string>('API_URL');
+    const link = `${apiUrl}/auth/reset-password/redirect?token=${token}`;
     await this.mailService.sendPasswordReset(email, link);
+  }
+
+  buildResetPasswordDeepLink(token: string): string {
+    const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
+    return `${frontendUrl}/auth/reset-password?token=${token}`;
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
