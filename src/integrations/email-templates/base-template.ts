@@ -78,10 +78,16 @@ export function renderEmailShell(opts: EmailShellOptions): string {
                 ${
                   footnote
                     ? `<tr>
-                  <td style="font-size:13px; color:${COLORS.inkSoft};">${footnote}</td>
+                  <td style="font-size:13px; color:${COLORS.inkSoft}; padding-bottom:14px;">${footnote}</td>
                 </tr>`
                     : ''
                 }
+                <tr>
+                  <td style="font-size:12.5px; color:${COLORS.inkSoft}; line-height:1.5;">
+                    Button not clickable? Copy this link into your browser:<br />
+                    <span style="word-break:break-all;">${ctaUrl}</span>
+                  </td>
+                </tr>
               </table>
             </td>
           </tr>
