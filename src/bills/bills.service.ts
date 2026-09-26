@@ -36,6 +36,7 @@ export class BillService {
 
     return {
       id: bill.id,
+      userBillerId: bill.userBillerId,
       company: bill.extractedCompany,
       amount,
       currency: bill.currency,
