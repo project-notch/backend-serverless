@@ -63,4 +63,14 @@ export class MailService {
 <p>If you didn't request this, you can ignore this email.</p>`,
     });
   }
+
+  async sendPasswordReset(to: string, link: string): Promise<void> {
+    await this.send({
+      to,
+      subject: 'Reset your Nutian password',
+      html: `<p>Click below to choose a new password. This link expires in 15 minutes.</p>
+<p><a href="${link}">${link}</a></p>
+<p>If you didn't request this, you can ignore this email — your password hasn't changed.</p>`,
+    });
+  }
 }

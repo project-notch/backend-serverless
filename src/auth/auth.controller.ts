@@ -7,6 +7,8 @@ import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
 import { MagicLinkDto } from './dto/magic-link.dto.js';
 import { CompleteSetupDto } from './dto/complete-setup.dto.js';
+import { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
 
 @ApiTags('auth')
@@ -48,6 +50,24 @@ export class AuthController {
     const user = await this.authService.verifyMagicLink(token);
     const accessToken = this.authService.signAccessToken(user);
     res.redirect(this.authService.buildFrontendRedirectUrl(accessToken));
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({
+    summary: 'Email a password-reset link if the address is registered',
+    description:
+      'Always returns the same generic message, whether or not the email is registered — this cannot be used to check whether an account exists.',
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    await this.authService.requestPasswordReset(dto.email);
+    return { message: 'If that email is registered, a reset link is on its way.' };
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Set a new password using the token from a reset-password email' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    await this.authService.resetPassword(dto.token, dto.newPassword);
+    return { message: 'Password updated. Sign in with your new password.' };
   }
 
   @Post('complete-setup')

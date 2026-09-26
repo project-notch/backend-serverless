@@ -51,6 +51,11 @@ export class UserService {
     });
   }
 
+  /** Replaces the account's password outright — used by the reset-password flow. */
+  async setPassword(userId: string, passwordHash: string) {
+    return this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  }
+
   async updateProfile(
     userId: string,
     input: { username?: string; phone?: string; defaultCurrency?: string; timezone?: string },

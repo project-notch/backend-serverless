@@ -9,6 +9,7 @@ import { PasswordService } from './password.service.js';
 import { OAuthStateService } from './oauth-state.service.js';
 import { MagicLinkService } from './magic-link.service.js';
 import { MagicLinkRateLimiterService } from './magic-link-rate-limiter.service.js';
+import { PasswordResetService } from './password-reset.service.js';
 import { GoogleLoginStrategy } from './google-login.strategy.js';
 import { LocalStrategy } from './local.strategy.js';
 import { JwtStrategy } from './jwt.strategy.js';
@@ -42,6 +43,7 @@ import { IntegrationsModule } from '../integrations/integrations.module.js';
     OAuthStateService,
     MagicLinkService,
     MagicLinkRateLimiterService,
+    PasswordResetService,
     GoogleLoginStrategy,
     LocalStrategy,
     JwtStrategy,

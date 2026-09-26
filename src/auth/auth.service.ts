@@ -7,6 +7,7 @@ import { AuthIdentityService } from './auth-identity.service.js';
 import { PasswordService } from './password.service.js';
 import { MagicLinkService } from './magic-link.service.js';
 import { MagicLinkRateLimiterService } from './magic-link-rate-limiter.service.js';
+import { PasswordResetService } from './password-reset.service.js';
 
 interface RegisterInput {
   email: string;
@@ -31,6 +32,7 @@ export class AuthService {
     private readonly mailService: MailService,
     private readonly magicLinkService: MagicLinkService,
     private readonly magicLinkRateLimiter: MagicLinkRateLimiterService,
+    private readonly passwordResetService: PasswordResetService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -89,6 +91,35 @@ export class AuthService {
     const apiUrl = this.config.getOrThrow<string>('API_URL');
     const link = `${apiUrl}/auth/magic/callback?token=${token}`;
     await this.mailService.sendMagicLink(email, link, { isExistingUser: !!existingUser });
+  }
+
+  /**
+   * Always resolves the same way regardless of whether the email is
+   * registered — the controller returns one generic message either way, so
+   * this can't be used to enumerate accounts. Reuses the magic-link cooldown
+   * (name aside, it's just a generic per-email throttle) since spamming one
+   * inbox with reset links is the same abuse shape as spamming it with
+   * sign-in links.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    this.magicLinkRateLimiter.check(email);
+
+    const user = await this.userService.findByEmail(email);
+    if (!user) return;
+
+    const token = this.passwordResetService.sign(email);
+    const frontendUrl = this.config.getOrThrow<string>('FRONTEND_URL');
+    const link = `${frontendUrl}/auth/reset-password?token=${token}`;
+    await this.mailService.sendPasswordReset(email, link);
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const email = this.passwordResetService.verify(token);
+    const user = await this.userService.findByEmail(email);
+    if (!user) throw new UnauthorizedException('This reset link is invalid or has expired.');
+
+    const passwordHash = await this.passwordService.hash(newPassword);
+    await this.userService.setPassword(user.id, passwordHash);
   }
 
   /** Mirrors validateGoogleLogin's find-or-create — a verified magic link is as good as a verified OAuth email. */
