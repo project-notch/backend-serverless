@@ -14,6 +14,7 @@ import { GoogleLoginStrategy } from './google-login.strategy.js';
 import { LocalStrategy } from './local.strategy.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { JwtAuthGuard } from './jwt-auth.guard.js';
+import { IpRateLimiterGuard } from './ip-rate-limiter.guard.js';
 import { UsersModule } from '../users/users.module.js';
 import { IntegrationsModule } from '../integrations/integrations.module.js';
 
@@ -48,6 +49,7 @@ import { IntegrationsModule } from '../integrations/integrations.module.js';
     LocalStrategy,
     JwtStrategy,
     JwtAuthGuard,
+    IpRateLimiterGuard,
   ],
   exports: [
     AuthService,
