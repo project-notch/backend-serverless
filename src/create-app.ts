@@ -63,7 +63,7 @@ export async function createApp(): Promise<NestExpressApplication> {
     }
 
     const config = new DocumentBuilder()
-      .setTitle('Project Nutian API')
+      .setTitle('Project Levy API')
       .setDescription('Bill & recurring-payment detection — backend API')
       .setVersion('0.1.0')
       .addBearerAuth()

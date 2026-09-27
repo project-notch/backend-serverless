@@ -48,7 +48,7 @@ export function renderEmailShell(opts: EmailShellOptions): string {
         <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="max-width:480px; width:100%;">
           <tr>
             <td style="padding-bottom: 20px;" align="left">
-              <span style="font-size:20px; font-weight:800; color:${COLORS.ink}; letter-spacing:-0.2px;">Nutian</span>
+              <span style="font-size:20px; font-weight:800; color:${COLORS.ink}; letter-spacing:-0.2px;">Levy</span>
             </td>
           </tr>
           <tr>
