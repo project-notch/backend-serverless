@@ -67,7 +67,7 @@ export class AuthService {
     if (existingUser) {
       // Account-linking: only link if Google has verified ownership of this
       // email address. Without this check, anyone able to register a Google
-      // account using a victim's email could take over their Nutian account.
+      // account using a victim's email could take over their Levy account.
       if (!input.emailVerified) {
         throw new UnauthorizedException(
           'An account already exists with this email. Sign in with your password, or verify this email with Google first.',
@@ -108,7 +108,7 @@ export class AuthService {
     if (!user) return;
 
     const token = this.passwordResetService.sign(email);
-    // An https link, not the nutine:// deep link directly — Gmail (and most
+    // An https link, not the levy:// deep link directly — Gmail (and most
     // webmail clients) won't linkify a custom URI scheme in received HTML,
     // so a button pointed straight at one renders as inert text. Mirrors
     // requestMagicLink's own link shape: mail an API_URL link that redirects

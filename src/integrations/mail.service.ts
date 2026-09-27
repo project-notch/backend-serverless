@@ -18,7 +18,7 @@ export class MailService {
 
   constructor(private readonly config: ConfigService) {
     // Must be a SendGrid Single Sender verified address — see MAIL_FROM in .env.example.
-    this.from = config.get<string>('MAIL_FROM') ?? 'Nutian <onboarding@example.com>';
+    this.from = config.get<string>('MAIL_FROM') ?? 'Levy <onboarding@example.com>';
   }
 
   /**
@@ -55,7 +55,7 @@ export class MailService {
     const isExistingUser = options?.isExistingUser ?? false;
     await this.send({
       to,
-      subject: isExistingUser ? 'Your Nutian sign-in link' : 'Confirm your Nutian account',
+      subject: isExistingUser ? 'Your Levy sign-in link' : 'Confirm your Levy account',
       html: renderMagicLinkEmail(link, isExistingUser),
     });
   }
@@ -63,7 +63,7 @@ export class MailService {
   async sendPasswordReset(to: string, link: string): Promise<void> {
     await this.send({
       to,
-      subject: 'Reset your Nutian password',
+      subject: 'Reset your Levy password',
       html: renderPasswordResetEmail(link),
     });
   }

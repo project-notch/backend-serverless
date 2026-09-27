@@ -78,7 +78,7 @@ export class AuthController {
   @ApiOperation({
     summary: 'Reset-password email link target (opened from the email, not called directly)',
     description:
-      'An https link, not the nutine:// deep link — webmail clients like Gmail refuse to linkify a ' +
+      'An https link, not the levy:// deep link — webmail clients like Gmail refuse to linkify a ' +
       'custom URI scheme in received HTML, so the emailed button points here and this redirects into the app.',
   })
   @ApiResponse({ status: 302, description: 'Redirects to the app deep link' })
